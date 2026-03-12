@@ -137,6 +137,9 @@ code/anomaly_system/
         __main__.py
         main.py              # CLI entry point
         config.py            # Paths, Ollama settings, IF defaults
+        server.py            # FastAPI web frontend (SSE streaming)
+        templates/
+            index.html       # Single-page UI (dark theme, Canvas charts)
 
         llm/
             ollama_client.py     # Async Ollama HTTP client (Metal)
@@ -213,6 +216,28 @@ uv run python -m anomaly_system --agent --goal "Run grid search to find best hyp
 
 # Standalone inference on new data
 uv run python -m anomaly_system.tools.inference --input data/new_data.csv
+```
+
+### Web Frontend
+
+```bash
+cd code/anomaly_system
+uv run python -m anomaly_system.server
+```
+
+Opens a web UI at **http://localhost:8000** with:
+
+- **Command buttons** — Health Check, Run Pipeline, Run Agent, Agent (no-think), Vision Test
+- **Data management** — Upload CSV files, select a dataset, download a template
+- **Data Preview** — Interactive timeseries chart appears when a data file is selected (shows features as colored lines, anomaly rows highlighted in red; click legend items to toggle columns)
+- **Live terminal** — Streams command output in real time via SSE
+- **Plots gallery** — View generated visualizations after a run
+- **Reports viewer** — Read markdown experiment reports rendered as HTML
+
+Or run with uvicorn directly for auto-reload during development:
+
+```bash
+uv run uvicorn anomaly_system.server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Thinking Mode
