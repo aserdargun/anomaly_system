@@ -19,8 +19,8 @@ for _dir in [DATA_DIR, MODELS_DIR, PLOTS_DIR, REPORTS_DIR]:
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen3.5:latest"
 OLLAMA_TIMEOUT = 120  # seconds for text chat
-OLLAMA_VISION_TIMEOUT = 600  # seconds for vision — Qwen 3.5 vision is slow on M4
-VISION_MAX_IMAGE_WIDTH = 512  # resize images before sending to vision
+OLLAMA_VISION_TIMEOUT = 300  # seconds for vision
+VISION_MAX_IMAGE_WIDTH = 224  # resize for vision — fewer pixels = fewer tokens = faster
 AGENT_MAX_ITERATIONS = 20
 OLLAMA_THINKING = True  # Qwen 3.5 thinking mode — disable with --no-think for speed
 
@@ -47,7 +47,9 @@ GRID_SEARCH_PARAMS = {
 # Feature engineering
 WINDOW_SIZES = [10, 30, 60]
 
-# Visualization
-PLOT_DPI = 150
-PLOT_FIGSIZE = (10, 7)
+# Visualization — kept small for fast LLM vision processing
+# Qwen 3.5 vision: patch_size=16, spatial_merge=2 → tokens ≈ (W/32)*(H/32)
+# At DPI=72, figsize=(5,3.5) → 360x252px → ~28 tokens (fast)
+PLOT_DPI = 72
+PLOT_FIGSIZE = (5, 3.5)
 MATPLOTLIB_BACKEND = "Agg"  # Use Agg for headless; "macosx" for interactive on M4

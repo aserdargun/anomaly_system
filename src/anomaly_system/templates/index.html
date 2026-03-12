@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anomaly Detection System</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #30363d;
+  }
+  header h1 { font-size: 20px; font-weight: 600; }
+  .status {
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: #1f2937;
+  }
+  .status.idle { color: #7ee787; }
+  .status.running { color: #f0883e; }
+
+  /* Command buttons */
+  .commands {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .cmd-btn {
+    padding: 8px 16px;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    background: #161b22;
+    color: #e6edf3;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .cmd-btn:hover { background: #1f2937; border-color: #58a6ff; }
+  .cmd-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .cmd-btn.primary { background: #238636; border-color: #238636; }
+  .cmd-btn.primary:hover { background: #2ea043; }
+
+  /* Terminal output */
+  .terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .terminal-header h2 { font-size: 14px; color: #8b949e; font-weight: 500; }
+  .clear-btn {
+    font-size: 12px;
+    color: #8b949e;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .clear-btn:hover { color: #e6edf3; }
+  #terminal {
+    background: #010409;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 24px;
+  }
+
+  /* Sections */
+  .section {
+    margin-bottom: 24px;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    cursor: pointer;
+  }
+  .section-header h2 { font-size: 14px; font-weight: 600; }
+  .section-header .toggle { color: #8b949e; font-size: 12px; }
+  .section-body { padding: 16px; }
+  .section-body.collapsed { display: none; }
+
+  /* Plots */
+  .plots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .plot-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .plot-card img { width: 100%; display: block; }
+  .plot-card .plot-name {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #8b949e;
+    border-top: 1px solid #30363d;
+  }
+
+  /* Reports */
+  .report-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .report-btn {
+    padding: 6px 12px;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    background: #161b22;
+    color: #58a6ff;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .report-btn:hover { background: #1f2937; }
+  .report-btn.active { border-color: #58a6ff; background: #1f2937; }
+  #report-content {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    min-height: 60px;
+  }
+  #report-content h1 { font-size: 20px; margin: 16px 0 8px; }
+  #report-content h2 { font-size: 16px; margin: 14px 0 6px; color: #58a6ff; }
+  #report-content h3 { font-size: 14px; margin: 10px 0 4px; }
+  #report-content p { margin: 8px 0; }
+  #report-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  #report-content th, #report-content td {
+    border: 1px solid #30363d;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 13px;
+  }
+  #report-content th { background: #1f2937; }
+  #report-content code {
+    background: #1f2937;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  #report-content pre {
+    background: #010409;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+  }
+
+  .empty { color: #484f58; font-style: italic; font-size: 13px; }
+
+  /* Data upload */
+  .upload-area {
+    border: 2px dashed #30363d;
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 16px;
+  }
+  .upload-area:hover, .upload-area.dragover {
+    border-color: #58a6ff;
+    background: rgba(88, 166, 255, 0.05);
+  }
+  .upload-area p { font-size: 13px; color: #8b949e; margin: 4px 0; }
+  .upload-area .upload-icon { font-size: 24px; margin-bottom: 8px; color: #58a6ff; }
+  .upload-area input[type="file"] { display: none; }
+
+  .data-files { margin-bottom: 16px; }
+  .data-file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    background: #161b22;
+  }
+  .data-file .name { color: #58a6ff; }
+  .data-file .size { color: #8b949e; font-size: 12px; }
+  .data-file .use-btn {
+    padding: 4px 10px;
+    border: 1px solid #238636;
+    border-radius: 4px;
+    background: transparent;
+    color: #7ee787;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .data-file .use-btn:hover { background: #238636; color: #fff; }
+  .data-file .use-btn.active { background: #238636; color: #fff; }
+
+  .template-section {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .template-section h3 { font-size: 13px; margin-bottom: 8px; color: #e6edf3; }
+  .template-section p { font-size: 12px; color: #8b949e; margin-bottom: 8px; line-height: 1.5; }
+  .template-section pre {
+    background: #010409;
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-x: auto;
+    margin-bottom: 12px;
+  }
+  .template-section .dl-btn {
+    padding: 6px 14px;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    background: #161b22;
+    color: #58a6ff;
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .template-section .dl-btn:hover { background: #1f2937; }
+
+  .selected-data {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #1f2937;
+    border: 1px solid #238636;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #7ee787;
+    margin-left: 8px;
+  }
+
+  /* Timeseries chart */
+  #timeseries-section { display: none; }
+  #timeseries-section.visible { display: block; }
+  #timeseries-canvas {
+    width: 100%;
+    height: 280px;
+    background: #010409;
+    border-radius: 6px;
+    display: block;
+  }
+  .ts-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 11px;
+  }
+  .ts-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    opacity: 1;
+  }
+  .ts-legend-item.hidden { opacity: 0.3; }
+  .ts-legend-swatch {
+    width: 14px;
+    height: 3px;
+    border-radius: 1px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Anomaly Detection System</h1>
+    <span id="status" class="status idle">Idle</span>
+  </header>
+
+  <div class="commands">
+    <button class="cmd-btn" onclick="run('health')">Health Check</button>
+    <button class="cmd-btn primary" onclick="run('pipeline')">Run Pipeline</button>
+    <button class="cmd-btn primary" onclick="run('agent')">Run Agent</button>
+    <button class="cmd-btn" onclick="run('agent-no-think')">Agent (no-think)</button>
+    <button class="cmd-btn" onclick="run('vision-test')">Vision Test</button>
+    <span id="selected-data-label"></span>
+  </div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection('data-body')">
+      <h2>Data</h2>
+      <span class="toggle" id="data-toggle">Show</span>
+    </div>
+    <div id="data-body" class="section-body collapsed">
+      <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+        <div class="upload-icon">+</div>
+        <p>Click or drag a CSV file here to upload</p>
+        <p>Numeric feature columns + a <code>label</code> column (0=normal, 1=anomaly)</p>
+        <input type="file" id="file-input" accept=".csv" onchange="uploadFile(this.files[0])">
+      </div>
+
+      <div id="data-files" class="data-files"></div>
+
+      <div class="template-section">
+        <h3>CSV Template</h3>
+        <p>Your CSV must have numeric feature columns and a <code>label</code> column where 0 = normal and 1 = anomaly. Column names can be anything. Example:</p>
+        <pre>feature_0,feature_1,feature_2,...,feature_9,label
+ 0.12,-0.34, 0.56,...,-0.12,0    &lt;-- normal
+-0.23, 0.45,-0.67,..., 0.23,0    &lt;-- normal
+ 4.50,-3.80, 5.20,...,-5.10,1    &lt;-- anomaly</pre>
+        <a class="dl-btn" href="/api/template.csv" download>Download template CSV</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="timeseries-section" class="section">
+    <div class="section-header">
+      <h2>Data Preview</h2>
+      <span id="ts-info" style="font-size:12px;color:#8b949e"></span>
+    </div>
+    <div class="section-body">
+      <canvas id="timeseries-canvas"></canvas>
+      <div id="ts-legend" class="ts-legend"></div>
+    </div>
+  </div>
+
+  <div class="terminal-header">
+    <h2>Output</h2>
+    <button class="clear-btn" onclick="clearTerminal()">Clear</button>
+  </div>
+  <div id="terminal"><span class="empty">Click a command to start...</span></div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection('plots-body')">
+      <h2>Plots</h2>
+      <span class="toggle" id="plots-toggle">Show</span>
+    </div>
+    <div id="plots-body" class="section-body collapsed">
+      <div id="plots-grid" class="plots-grid">
+        <span class="empty">No plots yet. Run a pipeline or agent first.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection('reports-body')">
+      <h2>Reports</h2>
+      <span class="toggle" id="reports-toggle">Show</span>
+    </div>
+    <div id="reports-body" class="section-body collapsed">
+      <div id="report-list" class="report-list"></div>
+      <div id="report-content"><span class="empty">Select a report to view.</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const terminal = document.getElementById('terminal');
+const statusEl = document.getElementById('status');
+let running = false;
+let selectedDataPath = null;
+
+function setRunning(isRunning) {
+  running = isRunning;
+  statusEl.textContent = isRunning ? 'Running...' : 'Idle';
+  statusEl.className = 'status ' + (isRunning ? 'running' : 'idle');
+  document.querySelectorAll('.cmd-btn').forEach(b => b.disabled = isRunning);
+}
+
+function clearTerminal() {
+  terminal.textContent = '';
+}
+
+function run(command) {
+  if (running) return;
+  terminal.textContent = '';
+  setRunning(true);
+
+  let url = '/api/run/' + command;
+  if (selectedDataPath) {
+    url += '?data_path=' + encodeURIComponent(selectedDataPath);
+  }
+
+  const source = new EventSource(url);
+
+  source.onmessage = function(e) {
+    const line = JSON.parse(e.data);
+    terminal.textContent += line + '\n';
+    terminal.scrollTop = terminal.scrollHeight;
+  };
+
+  source.addEventListener('done', function(e) {
+    source.close();
+    const data = JSON.parse(e.data);
+    const code = data.exit_code;
+    terminal.textContent += '\n' + (code === 0 ? '--- Done ---' : '--- Failed (exit ' + code + ') ---') + '\n';
+    terminal.scrollTop = terminal.scrollHeight;
+    setRunning(false);
+    refreshPlots();
+    refreshReports();
+  });
+
+  source.onerror = function() {
+    source.close();
+    terminal.textContent += '\n--- Connection lost ---\n';
+    setRunning(false);
+  };
+}
+
+function toggleSection(id) {
+  const body = document.getElementById(id);
+  const toggleId = id.replace('-body', '-toggle');
+  const toggle = document.getElementById(toggleId);
+  const collapsed = body.classList.toggle('collapsed');
+  toggle.textContent = collapsed ? 'Show' : 'Hide';
+
+  if (!collapsed) {
+    if (id === 'plots-body') refreshPlots();
+    if (id === 'reports-body') refreshReports();
+    if (id === 'data-body') refreshDataFiles();
+  }
+}
+
+// --- Data upload & selection ---
+
+function selectData(path, name) {
+  selectedDataPath = path;
+  const label = document.getElementById('selected-data-label');
+  label.innerHTML = '<span class="selected-data">Data: ' + name + ' <span style="cursor:pointer;margin-left:6px" onclick="clearDataSelection(event)">&times;</span></span>';
+  refreshDataFiles();
+  loadTimeseries(name);
+}
+
+function clearDataSelection(e) {
+  if (e) e.stopPropagation();
+  selectedDataPath = null;
+  document.getElementById('selected-data-label').innerHTML = '';
+  document.getElementById('timeseries-section').classList.remove('visible');
+  refreshDataFiles();
+}
+
+// --- Timeseries chart ---
+const TS_COLORS = [
+  '#58a6ff','#f0883e','#7ee787','#d2a8ff','#ff7b72',
+  '#79c0ff','#ffa657','#56d364','#bc8cff','#ffa198',
+  '#3fb950','#d29922','#f778ba','#a5d6ff','#db6d28',
+];
+let tsHiddenCols = new Set();
+let tsData = null;
+
+async function loadTimeseries(filename) {
+  const section = document.getElementById('timeseries-section');
+  try {
+    const resp = await fetch('/api/data/preview/' + encodeURIComponent(filename));
+    tsData = await resp.json();
+    if (tsData.error) {
+      section.classList.remove('visible');
+      return;
+    }
+    tsHiddenCols = new Set();
+    section.classList.add('visible');
+    document.getElementById('ts-info').textContent = tsData.n_rows + ' rows, ' + tsData.columns.length + ' features';
+    buildTsLegend();
+    drawTimeseries();
+  } catch(e) {
+    section.classList.remove('visible');
+  }
+}
+
+function buildTsLegend() {
+  const legend = document.getElementById('ts-legend');
+  let html = tsData.columns.map((col, i) => {
+    const color = TS_COLORS[i % TS_COLORS.length];
+    const cls = tsHiddenCols.has(i) ? 'ts-legend-item hidden' : 'ts-legend-item';
+    return `<span class="${cls}" onclick="toggleTsCol(${i})">
+      <span class="ts-legend-swatch" style="background:${color}"></span>${col}
+    </span>`;
+  }).join('');
+  if (tsData.label) {
+    html += `<span class="ts-legend-item"><span class="ts-legend-swatch" style="background:#f85149;height:8px;width:8px;border-radius:50%"></span>Anomaly</span>`;
+  }
+  legend.innerHTML = html;
+}
+
+function toggleTsCol(idx) {
+  if (tsHiddenCols.has(idx)) tsHiddenCols.delete(idx);
+  else tsHiddenCols.add(idx);
+  buildTsLegend();
+  drawTimeseries();
+}
+
+function drawTimeseries() {
+  const canvas = document.getElementById('timeseries-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+
+  // Clear
+  ctx.fillStyle = '#010409';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!tsData || tsData.rows.length === 0) return;
+
+  const pad = { top: 16, right: 16, bottom: 28, left: 52 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+  const n = tsData.rows.length;
+
+  // Compute global Y range across visible columns
+  let yMin = Infinity, yMax = -Infinity;
+  for (let ci = 0; ci < tsData.columns.length; ci++) {
+    if (tsHiddenCols.has(ci)) continue;
+    for (let ri = 0; ri < n; ri++) {
+      const v = tsData.rows[ri][ci];
+      if (v < yMin) yMin = v;
+      if (v > yMax) yMax = v;
+    }
+  }
+  if (!isFinite(yMin)) { yMin = 0; yMax = 1; }
+  if (yMin === yMax) { yMin -= 1; yMax += 1; }
+  const yRange = yMax - yMin;
+
+  function xPos(i) { return pad.left + (i / Math.max(n - 1, 1)) * plotW; }
+  function yPos(v) { return pad.top + plotH - ((v - yMin) / yRange) * plotH; }
+
+  // Draw anomaly background bands
+  if (tsData.label) {
+    ctx.fillStyle = 'rgba(248, 81, 73, 0.08)';
+    for (let i = 0; i < n; i++) {
+      if (tsData.label[i] === 1) {
+        const x = xPos(i) - plotW / n / 2;
+        ctx.fillRect(x, pad.top, plotW / n + 1, plotH);
+      }
+    }
+  }
+
+  // Y-axis grid lines & labels
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#484f58';
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.textAlign = 'right';
+  const nTicks = 5;
+  for (let t = 0; t <= nTicks; t++) {
+    const v = yMin + (yRange * t / nTicks);
+    const y = yPos(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), pad.left - 6, y + 3);
+  }
+
+  // X-axis labels
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#484f58';
+  const xTicks = Math.min(n, 6);
+  for (let t = 0; t < xTicks; t++) {
+    const i = Math.round(t * (n - 1) / Math.max(xTicks - 1, 1));
+    ctx.fillText(i, xPos(i), H - 8);
+  }
+
+  // Draw lines — subsample if >4000 points to keep it fast
+  const step = n > 4000 ? Math.ceil(n / 2000) : 1;
+  for (let ci = 0; ci < tsData.columns.length; ci++) {
+    if (tsHiddenCols.has(ci)) continue;
+    ctx.strokeStyle = TS_COLORS[ci % TS_COLORS.length];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i < n; i += step) {
+      const x = xPos(i), y = yPos(tsData.rows[i][ci]);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Draw anomaly dots on top
+  if (tsData.label) {
+    ctx.fillStyle = '#f85149';
+    for (let i = 0; i < n; i += step) {
+      if (tsData.label[i] === 1) {
+        const x = xPos(i);
+        // Dot at the value of the first visible column (or center)
+        let yVal = pad.top + plotH / 2;
+        for (let ci = 0; ci < tsData.columns.length; ci++) {
+          if (!tsHiddenCols.has(ci)) { yVal = yPos(tsData.rows[i][ci]); break; }
+        }
+        ctx.beginPath();
+        ctx.arc(x, yVal, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Axis label
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Row Index', pad.left + plotW / 2, H - 1);
+}
+
+async function uploadFile(file) {
+  if (!file) return;
+  if (!file.name.endsWith('.csv')) {
+    alert('Only .csv files are accepted.');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      selectData(data.path, data.filename);
+      refreshDataFiles();
+    }
+  } catch(e) {
+    alert('Upload failed.');
+  }
+  document.getElementById('file-input').value = '';
+}
+
+async function refreshDataFiles() {
+  try {
+    const resp = await fetch('/api/data');
+    const files = await resp.json();
+    const container = document.getElementById('data-files');
+    if (files.length === 0) {
+      container.innerHTML = '<span class="empty">No data files yet. Upload a CSV or use synthetic data (default).</span>';
+      return;
+    }
+    container.innerHTML = files.map(f => {
+      const isActive = selectedDataPath === f.path;
+      return `<div class="data-file">
+        <span class="name">${f.name}</span>
+        <span class="size">${f.size_kb} KB</span>
+        <button class="use-btn ${isActive ? 'active' : ''}" onclick="selectData('${f.path}', '${f.name}')">
+          ${isActive ? 'Selected' : 'Use'}
+        </button>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// Drag and drop
+const uploadArea = document.getElementById('upload-area');
+uploadArea.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  uploadArea.classList.add('dragover');
+});
+uploadArea.addEventListener('dragleave', function() {
+  uploadArea.classList.remove('dragover');
+});
+uploadArea.addEventListener('drop', function(e) {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    uploadFile(e.dataTransfer.files[0]);
+  }
+});
+
+// --- Plots & Reports ---
+
+async function refreshPlots() {
+  try {
+    const resp = await fetch('/api/plots');
+    const files = await resp.json();
+    const grid = document.getElementById('plots-grid');
+    if (files.length === 0) {
+      grid.innerHTML = '<span class="empty">No plots yet.</span>';
+      return;
+    }
+    grid.innerHTML = files.map(f =>
+      `<div class="plot-card">
+        <img src="/api/plots/${f}?t=${Date.now()}" alt="${f}">
+        <div class="plot-name">${f.replace('.png','').replace(/_/g,' ')}</div>
+      </div>`
+    ).join('');
+  } catch(e) {}
+}
+
+async function refreshReports() {
+  try {
+    const resp = await fetch('/api/reports');
+    const files = await resp.json();
+    const list = document.getElementById('report-list');
+    if (files.length === 0) {
+      list.innerHTML = '<span class="empty">No reports yet.</span>';
+      return;
+    }
+    list.innerHTML = files.map(f =>
+      `<button class="report-btn" onclick="loadReport('${f}', this)">${f.replace('.md','').replace(/_/g,' ')}</button>`
+    ).join('');
+  } catch(e) {}
+}
+
+async function loadReport(filename, btn) {
+  document.querySelectorAll('.report-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  try {
+    const resp = await fetch('/api/reports/' + filename);
+    const html = await resp.text();
+    document.getElementById('report-content').innerHTML = html;
+  } catch(e) {
+    document.getElementById('report-content').innerHTML = '<span class="empty">Failed to load report.</span>';
+  }
+}
+
+// Resize handler for timeseries canvas
+window.addEventListener('resize', () => { if (tsData) drawTimeseries(); });
+
+// Load initial data
+refreshPlots();
+refreshReports();
+refreshDataFiles();
+</script>
+</body>
+</html>
