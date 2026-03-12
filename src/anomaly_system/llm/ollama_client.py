@@ -6,7 +6,14 @@ from pathlib import Path
 
 import httpx
 
-from anomaly_system.config import OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_THINKING
+from anomaly_system.config import (
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT,
+    OLLAMA_THINKING,
+    OLLAMA_VISION_TIMEOUT,
+    VISION_MAX_IMAGE_WIDTH,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +150,29 @@ class OllamaClient:
             "Try: brew services restart ollama"
         )
 
+    @staticmethod
+    def _resize_image_for_vision(image_path: str, max_width: int = VISION_MAX_IMAGE_WIDTH) -> bytes:
+        """Resize image to reduce vision processing time.
+
+        Args:
+            image_path: Path to image file.
+            max_width: Maximum width in pixels.
+
+        Returns:
+            PNG bytes of the resized image.
+        """
+        from io import BytesIO
+        from PIL import Image
+
+        img = Image.open(image_path)
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_size = (max_width, int(img.height * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
     async def chat_with_vision(self, prompt: str, image_path: str) -> str:
         """Send a vision request with an image to the model.
 
@@ -153,7 +183,7 @@ class OllamaClient:
         Returns:
             LLM's text response.
         """
-        image_data = Path(image_path).read_bytes()
+        image_data = self._resize_image_for_vision(image_path)
         b64_image = base64.b64encode(image_data).decode("utf-8")
 
         tag = "/think" if self.thinking else "/no_think"
@@ -171,24 +201,26 @@ class OllamaClient:
             "stream": False,
         }
 
-        logger.debug("Ollama vision request: image=%s", image_path)
+        vision_timeout = OLLAMA_VISION_TIMEOUT
+        logger.debug("Ollama vision request: image=%s (resized to %dpx, timeout=%ds)",
+                      image_path, VISION_MAX_IMAGE_WIDTH, vision_timeout)
 
-        last_error = None
-        for attempt in range(3):
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    resp = await client.post(
-                        f"{self.base_url}/api/chat",
-                        json=payload,
-                    )
-                    resp.raise_for_status()
-                    result = resp.json()
-                    return result["message"]["content"]
-            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
-                last_error = e
-                logger.warning("Ollama vision attempt %d failed: %s", attempt + 1, e)
-
-        raise OllamaNotRunning(
-            f"Vision call failed after 3 attempts: {last_error}. "
-            "Try: brew services restart ollama"
-        )
+        try:
+            async with httpx.AsyncClient(timeout=vision_timeout) as client:
+                resp = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                )
+                resp.raise_for_status()
+                result = resp.json()
+                return result["message"]["content"]
+        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            raise OllamaNotRunning(
+                f"Vision call failed (connection): {e}. "
+                "Try: brew services restart ollama"
+            ) from e
+        except httpx.ReadTimeout as e:
+            raise OllamaNotRunning(
+                f"Vision call timed out after {vision_timeout}s. "
+                "Try --no-think for faster processing."
+            ) from e

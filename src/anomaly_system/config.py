@@ -18,7 +18,9 @@ for _dir in [DATA_DIR, MODELS_DIR, PLOTS_DIR, REPORTS_DIR]:
 # Ollama (Metal-accelerated on Mac Mini M4)
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen3.5:latest"
-OLLAMA_TIMEOUT = 180  # seconds — M4 Metal is fast, but vision calls can take longer
+OLLAMA_TIMEOUT = 120  # seconds for text chat
+OLLAMA_VISION_TIMEOUT = 600  # seconds for vision — Qwen 3.5 vision is slow on M4
+VISION_MAX_IMAGE_WIDTH = 512  # resize images before sending to vision
 AGENT_MAX_ITERATIONS = 20
 OLLAMA_THINKING = True  # Qwen 3.5 thinking mode — disable with --no-think for speed
 
